@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: savethatmoment-render
+    runtime: python
+    buildCommand: |
+      apt-get update && apt-get install -y ffmpeg
+      pip install -r requirements.txt
+    startCommand: gunicorn server:app --workers 2 --timeout 300 --bind 0.0.0.0:$PORT
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0

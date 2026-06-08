@@ -213,12 +213,15 @@ def render_job(job_id, job_dir, all_paths, mood, track, title, durations, highli
         if not clip_paths:
             raise ValueError('No clips could be rendered')
 
-        # ── 2. Calculate total duration for music ──
+        # ── 2. Select real music track ──
         total_sec = get_total_duration(clip_paths)
-        set_job(job_id, progress=62, stage='Generating music…')
+        set_job(job_id, progress=62, stage='Selecting music track…')
 
-        music_path = job_dir / 'music.wav'
-        generate_music(music_path, mood, track, max(total_sec, 5))
+        music_path = select_music_track(mood, track, job_dir)
+        if music_path is None:
+            # Fallback to generated music if no files found
+            music_path = job_dir / 'music.wav'
+            generate_music(music_path, mood, track, max(total_sec, 5))
 
         # ── 3. Concatenate all clips ──
         set_job(job_id, progress=72, stage='Assembling your film…')
@@ -444,7 +447,52 @@ MUSIC_CONFIGS = {
         chords=[[0,2,4,6],[0,3,5,7],[1,3,5,8],[0,2,5,7]], atk=0.04, rel=0.6),
 }
 
-def get_music_config(mood, track):
+def select_music_track(mood, track, job_dir):
+    """
+    Pick the best real MP3 track for the given mood/track combination.
+    Files are stored alongside server.py in the same directory.
+    Returns path to the selected MP3, or None if not found.
+    """
+    base = Path(__file__).parent
+
+    # Mood → music file mapping
+    MOOD_MAP = {
+        'cinematic':  'music_cinematic.mp3',
+        'adventure':  'music_adventure.mp3',
+        'warm':       'music_warm.mp3',
+        'romantic':   'music_warm.mp3',      # warm track fits romantic too
+        'nostalgic':  'music_warm.mp3',      # warm track fits nostalgic
+        'chill':      'music_chill.mp3',
+        'ambient':    'music_chill.mp3',     # chill fits ambient
+        'party':      'music_party.mp3',
+        'sport':      'music_party.mp3',     # party energy fits sport
+    }
+
+    # Track genre → music file fallback
+    TRACK_MAP = {
+        'orchestral': 'music_cinematic.mp3',
+        'acoustic':   'music_warm.mp3',
+        'ambient':    'music_chill.mp3',
+        'jazz':       'music_chill.mp3',
+        'electronic': 'music_party.mp3',
+        'pop':        'music_party.mp3',
+    }
+
+    # Try mood first, then track genre, then cinematic as default
+    for filename in [
+        MOOD_MAP.get(mood),
+        TRACK_MAP.get(track),
+        'music_cinematic.mp3',
+    ]:
+        if filename:
+            path = base / filename
+            if path.exists():
+                return path
+
+    return None
+
+
+
     key = f'{track}_{mood}'
     if key in MUSIC_CONFIGS:
         return MUSIC_CONFIGS[key]

@@ -128,7 +128,104 @@ def start_render():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/status/<job_id>', methods=['GET'])
+@app.route('/stripe-webhook', methods=['POST'])
+def stripe_webhook():
+    """
+    Stripe sends POST here after a successful payment.
+    We read the customer email + client_reference_id (Firebase UID)
+    and update their plan in Firestore via Firebase REST API.
+    """
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({'error': 'No data'}), 400
+
+        event_type = data.get('type', '')
+
+        # Only handle completed checkout sessions
+        if event_type != 'checkout.session.completed':
+            return jsonify({'received': True})
+
+        session    = data.get('data', {}).get('object', {})
+        email      = session.get('customer_email') or session.get('customer_details', {}).get('email', '')
+        uid        = session.get('client_reference_id', '')
+        amount     = session.get('amount_total', 0)  # in cents
+
+        # Determine plan from amount
+        if amount >= 11999:
+            plan = 'legacy'
+        elif amount >= 7999:
+            plan = 'chronicle'
+        else:
+            plan = 'memoir'
+
+        if uid:
+            update_firebase_plan(uid, plan, email)
+        elif email:
+            # Try to find user by email (fallback)
+            update_firebase_plan_by_email(email, plan)
+
+        return jsonify({'received': True})
+
+    except Exception as e:
+        print(f'Webhook error: {e}')
+        return jsonify({'error': str(e)}), 400
+
+
+def update_firebase_plan(uid, plan, email=''):
+    """Update user plan in Firestore via REST API."""
+    import urllib.request
+    project_id = 'savethatmoment-81562'
+    url = f'https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents/users/{uid}?updateMask.fieldPaths=plan&updateMask.fieldPaths=planUpdatedAt'
+    body = json.dumps({
+        'fields': {
+            'plan': {'stringValue': plan},
+            'planUpdatedAt': {'stringValue': __import__('datetime').datetime.utcnow().isoformat()},
+        }
+    }).encode()
+    try:
+        req = urllib.request.Request(url, data=body, method='PATCH',
+                                     headers={'Content-Type': 'application/json'})
+        urllib.request.urlopen(req, timeout=10)
+        print(f'Updated plan for uid={uid} to {plan}')
+    except Exception as e:
+        print(f'Firestore update failed: {e}')
+
+
+def update_firebase_plan_by_email(email, plan):
+    """Fallback: query Firestore for user by email and update plan."""
+    import urllib.request
+    project_id = 'savethatmoment-81562'
+    url = f'https://firestore.googleapis.com/v1/projects/{project_id}/databases/(default)/documents:runQuery'
+    body = json.dumps({
+        'structuredQuery': {
+            'from': [{'collectionId': 'users'}],
+            'where': {
+                'fieldFilter': {
+                    'field': {'fieldPath': 'email'},
+                    'op': 'EQUAL',
+                    'value': {'stringValue': email}
+                }
+            },
+            'limit': 1
+        }
+    }).encode()
+    try:
+        req = urllib.request.Request(url, data=body, method='POST',
+                                     headers={'Content-Type': 'application/json'})
+        resp = urllib.request.urlopen(req, timeout=10)
+        results = json.loads(resp.read())
+        for item in results:
+            doc = item.get('document', {})
+            if doc.get('name'):
+                uid = doc['name'].split('/')[-1]
+                update_firebase_plan(uid, plan, email)
+                break
+    except Exception as e:
+        print(f'Firestore email lookup failed: {e}')
+
+
+
 def job_status(job_id):
     job = get_job(job_id)
     if not job:
@@ -474,7 +571,7 @@ def select_music_track(mood, track, job_dir):
         'acoustic':   'music_warm.mp3',
         'ambient':    'music_chill.mp3',
         'jazz':       'music_chill.mp3',
-        'electronic': 'music_party.mp3',
+        'electronic': 'music_adventure.mp3',
         'pop':        'music_party.mp3',
     }
 

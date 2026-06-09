@@ -1,5 +1,5 @@
 """
-Save That Moment — Video Render Server
+Save That Moment — Video Render Server v3
 Runs on Render.com. Requires FFmpeg installed (see render.yaml / Dockerfile).
 Supports photos AND video clips in the same timeline.
 """

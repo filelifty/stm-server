@@ -3,10 +3,10 @@ services:
     name: savethatmoment-render
     runtime: python
     buildCommand: |
-      apt-get update && apt-get install -y ffmpeg
+      apt-get update && apt-get install -y ffmpeg fonts-dejavu-core
       pip install -r requirements.txt
-    startCommand: gunicorn server:app --workers 2 --timeout 300 --bind 0.0.0.0:$PORT
-    plan: free
+    startCommand: gunicorn server:app --workers 1 --threads 8 --timeout 300 --bind 0.0.0.0:$PORT
+    plan: starter
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0

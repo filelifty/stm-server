@@ -39,10 +39,10 @@ except ImportError:
     print('WARNING: google-auth/requests not installed — paid-plan verification disabled, all renders limited to demo size.')
 
 # ── Security / API config (set these in Render → Environment) ──
-ANTHROPIC_API_KEY      = os.environ.get('ANTHROPIC_API_KEY', '')
-STRIPE_WEBHOOK_SECRET  = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
-FIREBASE_SERVICE_ACCOUNT = os.environ.get('FIREBASE_SERVICE_ACCOUNT', '')
-ADMIN_KEY              = os.environ.get('ADMIN_KEY', '')
+ANTHROPIC_API_KEY      = os.environ.get('ANTHROPIC_API_KEY', '').strip()
+STRIPE_WEBHOOK_SECRET  = os.environ.get('STRIPE_WEBHOOK_SECRET', '').strip()
+FIREBASE_SERVICE_ACCOUNT = os.environ.get('FIREBASE_SERVICE_ACCOUNT', '').strip()
+ADMIN_KEY              = os.environ.get('ADMIN_KEY', '').strip()
 FIREBASE_PROJECT_ID    = 'savethatmoment-81562'
 
 PLAN_LIMITS = {'demo': 5, 'free': 5, 'memoir': 50, 'chronicle': 100, 'legacy': 200}
@@ -319,7 +319,7 @@ def analyse():
     # Cap content blocks so a malicious client cannot run up costs
     for m in messages:
         c = m.get('content')
-        if isinstance(c, list) and len(c) > 16:
+        if isinstance(c, list) and len(c) > 25:
             return jsonify({'error': 'Too many attachments'}), 400
 
     try:
